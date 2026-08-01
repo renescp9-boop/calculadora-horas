@@ -1,0 +1,51 @@
+import streamlit as st
+
+st.set_page_config(page_title="Minhas Horas & Goals", page_icon="💰")
+
+st.title("📊 Calculadora de Horas & Goals")
+
+# --- VALORES FIXOS (DO RECIBO) ---
+VALOR_HORA_EXTRA_LIQ = 7.96 * 0.89  # 7.08€/h líquidos (a 50%)
+SA_CARTAO = 10.20
+SA_DINHEIRO_LIQ = 10.20 - 1.39      # 8.81€ líquidos
+BASE_DIA_LIQ = (8 * 5.31 * 0.89) + SA_CARTAO  # 48.00€ por dia normal
+
+st.header("1. Calcular Ganho de Hoje")
+
+tipo_dia = st.selectbox("Tipo de Dia", ["Dia Útil Normal (8h)", "Sábado"])
+
+horas_extra = st.number_input(
+    "Horas Extra (ou Horas de Sábado)",
+    min_value=0.0,
+    max_value=12.0,
+    value=0.0,
+    step=0.5
+)
+
+if tipo_dia == "Dia Útil Normal (8h)":
+    ganho_dia = BASE_DIA_LIQ + (horas_extra * VALOR_HORA_EXTRA_LIQ)
+else: # Sábado
+    ganho_dia = (horas_extra * VALOR_HORA_EXTRA_LIQ) + SA_DINHEIRO_LIQ
+
+st.success(f"💰 Ganho estimado para este dia: **{ganho_dia:.2f} €**")
+
+st.markdown("---")
+
+st.header("2. Meta Mensal (Daily Goals)")
+
+meta_mensal = st.number_input("Meta de Dinheiro Líquido (€)", value=1090.0, step=10.0)
+acumulado = st.number_input("Já Acumulado este Mês (€)", value=0.0, step=10.0)
+dias_restantes = st.number_input("Dias de Trabalho Restantes", value=15, min_value=1)
+
+falta = meta_mensal - acumulado
+
+if falta <= 0:
+    st.balloons()
+    st.success("🎉 Parabéns! Já atingiste a tua meta mensal!")
+else:
+    horas_totais_necessarias = falta / VALOR_HORA_EXTRA_LIQ
+    horas_por_dia = horas_totais_necessarias / dias_restantes if dias_restantes > 0 else 0
+    
+    st.warning(f"Faltam **{falta:.2f} €** para atingir os {meta_mensal:.0f}€.")
+    st.info(f"👉 Precisas de **{horas_totais_necessarias:.1f} horas extra** no total do mês.")
+    st.metric(label="🎯 Meta Diária de Horas Extra", value=f"{horas_por_dia:.1f} h / dia")
