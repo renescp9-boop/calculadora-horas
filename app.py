@@ -220,4 +220,3 @@ elif menu == "📄 Descarregar Recibos PDF":
         file_name=f"Recibo_{mes.replace('/', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True
-    )
