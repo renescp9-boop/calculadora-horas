@@ -15,7 +15,7 @@ st.set_page_config(
     layout="centered"
 )
 
-# --- VALORES BASE (Triangle / Gotflow) ---
+# --- VALORES BASE REAIS (Triangle / Gotflow) ---
 SALARIO_BASE_MES = 920.00
 SALARIO_HORA_BRUTO = 5.31
 TAXA_SS = 0.11
@@ -30,7 +30,7 @@ if "registos_diarios" not in st.session_state:
     ]
 
 # --- GERADOR DE PDF ---
-def gerar_pdf_recibo(dias_trabalhados, horas_extra_totais, mes_ano_str="Julho/2026"):
+def gerar_pdf_recibo(dias_trabalhados, horas_extra_totais, mes_ano_str="Agosto/2026"):
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
     story = []
@@ -124,7 +124,7 @@ if menu == "📅 Calendário & Estimativa":
         dias_totais = (data_fim - data_inicio).days + 1
         dias_uteis = sum(1 for i in range(dias_totais) if (data_inicio + timedelta(days=i)).weekday() < 5)
         
-        bruto_base = (SALARIO_BASE_MES / 22) * dias_uteis if dias_uteis <= 22 else SALARIO_BASE_MES
+        bruto_base = SALARIO_BASE_MES
         bruto_extra = hextra * (SALARIO_HORA_BRUTO * 1.5)
         subs_alimentacao = dias_uteis * SA_CARTAO_DIA
         
@@ -140,6 +140,9 @@ if menu == "📅 Calendário & Estimativa":
         c1.metric("Líquido a Receber (Banco)", f"{liquido_banco:.2f} €")
         c2.metric("Cartão de Refeição", f"{subs_alimentacao:.2f} €")
         
+        st.write(f"• **Salário Bruto Base:** {bruto_base:.2f} €")
+        if hextra > 0:
+            st.write(f"• **Horas Extra ({hextra:.1f}h):** +{bruto_extra:.2f} €")
         st.write(f"• **Total Bruto (com Subs. Alimentação):** {total_bruto:.2f} €")
         st.write(f"• **Desconto SS (11%):** -{desconto_ss:.2f} €")
 
@@ -208,9 +211,9 @@ elif menu == "📊 Movimentos da Conta":
 elif menu == "📄 Descarregar Recibos PDF":
     st.header("📄 Descarregar Recibos de Vencimento")
     
-    mes = st.text_input("Mês/Ano do Recibo", value="Julho/2026")
-    dias = st.number_input("Dias de Alimentação", value=23)
-    he = st.number_input("Horas Extra Feitas", value=10.0)
+    mes = st.text_input("Mês/Ano do Recibo", value="Agosto/2026")
+    dias = st.number_input("Dias de Alimentação", value=21)
+    he = st.number_input("Horas Extra Feitas", value=0.0)
 
     pdf = gerar_pdf_recibo(dias, he, mes_ano_str=mes)
     
@@ -220,3 +223,4 @@ elif menu == "📄 Descarregar Recibos PDF":
         file_name=f"Recibo_{mes.replace('/', '_')}.pdf",
         mime="application/pdf",
         use_container_width=True
+    )
