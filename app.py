@@ -1,165 +1,298 @@
 import streamlit as st
+import pandas as pd
+from datetime import datetime, date
+import io
+
+# Importações para gerar PDF
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 st.set_page_config(
-    page_title="Caixa - Calculadora de Horas & Ganhos", 
+    page_title="Caixa | Caixadirecta", 
     page_icon="🏦",
     layout="centered"
 )
 
-# --- ESTILO VISUAL / LAYOUT DA CAIXA GERAL DE DEPÓSITOS (CGD) ---
+# --- RECURSOS E DADOS FIXOS DE RECIBOS REAIS ---
+RECIBOS_REAIS = {
+    "Junho/2026": {
+        "mes_str": "Junho/2026",
+        "data_recibo": "30-06-2026",
+        "salario_base": 920.00,
+        "salario_hora": 5.31,
+        "itens": [
+            ["Salário Bruto Mensal", "86.67", "5.31", "460.00", ""],
+            ["Subsídio de Férias", "1.00", "36.56", "36.56", ""],
+            ["Cartão de Refeição", "12.00", "7.23", "86.76", ""],
+            ["Segurança Social", "", "11.00%", "", "48.26"],
+            ["Segurança Social Sub. Férias", "", "11.00%", "", "4.02"],
+            ["Falta Just N/Remunerada", "4.00", "", "", "21.23"],
+            ["SA - Cartão Ticket", "", "", "", "86.76"]
+        ],
+        "total_abonos": 583.32,
+        "total_descontos": 160.27,
+        "liquido_banco": 423.05,
+        "cartao_ref": 86.76
+    },
+    "Julho/2026": {
+        "mes_str": "Julho/2026",
+        "data_recibo": "31-07-2026",
+        "salario_base": 920.00,
+        "salario_hora": 5.31,
+        "itens": [
+            ["Salário Bruto Mensal", "173.33", "5.31", "920.00", ""],
+            ["Hora Extra 50%", "8.00", "7.96", "63.69", ""],
+            ["Hora Extra 25%", "1.00", "6.63", "6.63", ""],
+            ["Hora Extra 37.5%", "1.00", "7.30", "7.30", ""],
+            ["Cartão de Refeição", "23.00", "10.20", "234.60", ""],
+            ["Retroativo Cartão de Refeição", "12.00", "2.97", "35.64", ""],
+            ["Segurança Social", "976.39", "11.00%", "", "107.40"],
+            ["Falta Just N/Remunerada", "3.00", "", "", "15.92"],
+            ["Falta Injustificada", "1.00", "", "", "5.31"],
+            ["SA - Cartão Ticket", "", "", "", "234.60"]
+        ],
+        "total_abonos": 1267.86,
+        "total_descontos": 363.23,
+        "liquido_banco": 904.63,
+        "cartao_ref": 234.60
+    }
+}
+
+# --- FUNÇÃO PARA GERAR PDF EXATO ---
+def gerar_pdf_recibo(dados):
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=20, leftMargin=20, topMargin=20, bottomMargin=20)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('TitleStyle', parent=styles['Heading1'], fontSize=11, alignment=1, spaceAfter=8)
+    normal_style = ParagraphStyle('Norm', parent=styles['Normal'], fontSize=8, leading=10)
+
+    header_data = [
+        [Paragraph("<b>TRIANGLE - E.T.T. UNIPESSOAL, LDA.</b><br/>Praça de Alvalade Nº7, 12º Dto<br/>1700-036 - LISBOA", normal_style),
+         Paragraph(f"<b>RECIBO DE REMUNERAÇÃO</b><br/><br/><b>{dados['mes_str']}</b>", title_style)]
+    ]
+    t_header = Table(header_data, colWidths=[280, 240])
+    t_header.setStyle(TableStyle([('BOX', (0,0), (-1,-1), 1, colors.black), ('VALIGN', (0,0), (-1,-1), 'MIDDLE')]))
+    story.append(t_header)
+    story.append(Spacer(1, 10))
+
+    items_data = [["DESIGNAÇÃO", "HORAS QUANT.", "VALOR TAXA", "ABONOS", "DESCONTOS"]]
+    items_data.extend(dados['itens'])
+    
+    t_items = Table(items_data, colWidths=[180, 80, 80, 90, 90])
+    t_items.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 8),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('ALIGN', (1,0), (-1,-1), 'CENTER')
+    ]))
+    story.append(t_items)
+    story.append(Spacer(1, 15))
+
+    totais_data = [
+        ["TOTAIS", f"{dados['total_abonos']:.2f} €", f"{dados['total_descontos']:.2f} €"],
+        ["TOTAL LÍQUIDO A RECEBER", "", f"{dados['liquido_banco']:.2f} €"],
+        ["A RECEBER EM CARTÃO DE REFEIÇÃO", "", f"{dados['cartao_ref']:.2f} €"]
+    ]
+    t_totais = Table(totais_data, colWidths=[260, 130, 130])
+    t_totais.setStyle(TableStyle([
+        ('BOX', (0,0), (-1,-1), 1, colors.black),
+        ('FONTNAME', (0,0), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,-1), 9),
+        ('BACKGROUND', (0,1), (-1,1), colors.whitesmoke)
+    ]))
+    story.append(t_totais)
+
+    doc.build(story)
+    buffer.seek(0)
+    return buffer
+
+# --- CSS PERSONALIZADO APLICADO AO ESTILO CAIXA REAL ---
 st.markdown("""
     <style>
-    /* Fundo geral e cores base da CGD */
-    .stApp {
-        background-color: #0b1a30;
-        color: #ffffff;
+    .stApp { background-color: #061626; color: #ffffff; }
+    
+    /* Ecrã de Conta / Topo */
+    .cgd-account-card {
+        background-color: #0d2238;
+        padding: 16px;
+        border-radius: 14px;
+        margin-bottom: 15px;
+        border: 1px solid #1c3d5a;
     }
     
-    /* Cabeçalho / Banner do Banco */
-    .cgd-header {
-        background: linear-gradient(135deg, #0f2b48 0%, #00529b 100%);
-        padding: 20px;
-        border-radius: 12px;
-        border-bottom: 4px solid #00a3e0;
-        margin-bottom: 25px;
-        text-align: center;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    
-    .cgd-header h1 {
-        color: #ffffff !important;
-        font-family: 'Arial', sans-serif;
-        font-weight: 700;
-        margin: 0;
-        font-size: 24px;
-    }
-    
-    .cgd-header p {
-        color: #00a3e0 !important;
-        margin-top: 5px;
-        font-size: 13px;
-        font-weight: 600;
-        letter-spacing: 1px;
-    }
-
-    /* Cartões de resultado no estilo das caixas da app CGD */
-    div[data-testid="stMetric"], .stSuccess, .stInfo, .stWarning {
-        background-color: #132743 !important;
-        border: 1px solid #1d3b66 !important;
-        border-radius: 10px !important;
-        color: #ffffff !important;
-    }
-    
-    /* Destaque para o valor ganho */
-    .cgd-card-total {
-        background: linear-gradient(90deg, #00529b 0%, #0072ce 100%);
-        padding: 18px;
+    /* Item de Movimento */
+    .cgd-mov-card {
+        background-color: #0a1b2b;
+        padding: 12px 16px;
         border-radius: 10px;
-        text-align: center;
-        margin-top: 15px;
-        box-shadow: 0 4px 10px rgba(0,82,155,0.4);
+        margin-bottom: 8px;
+        border-left: 3px solid #1f2937;
     }
+    .cgd-mov-card.green { border-left: 3px solid #10b981; }
+    .cgd-mov-card.red { border-left: 3px solid #ef4444; }
     
-    .cgd-card-total h2 {
-        color: #ffffff !important;
-        margin: 0;
-        font-size: 22px;
+    .cgd-date-header {
+        color: #9ca3af;
+        font-size: 11px;
+        font-weight: 700;
+        margin-top: 15px;
+        margin-bottom: 5px;
+        text-transform: uppercase;
     }
-
-    /* Ajuste da barra lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #081220 !important;
-    }
+    .cgd-title { font-weight: 600; font-size: 14px; color: #ffffff; }
+    .cgd-val-pos { font-weight: 700; font-size: 15px; color: #34d399; float: right; }
+    .cgd-val-neg { font-weight: 700; font-size: 15px; color: #f87171; float: right; }
+    .cgd-sub { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    
+    #MainMenu {visibility: hidden;} footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# --- CABEÇALHO COM ESTILO CGD ---
-st.markdown("""
-    <div class="cgd-header">
-        <h1>🏦 Caixagest | Simulador de Horas</h1>
-        <p>CAIXA GERAL DE DEPÓSITOS</p>
-    </div>
-""", unsafe_allow_html=True)
-
-# --- CONFIGURAÇÃO DE SUBSÍDIO ---
-st.sidebar.header("⚙️ Definir Subsídio")
-opcao_sa = st.sidebar.radio(
-    "Modalidade do Subsídio de Alimentação:",
-    ["Cartão de Refeição (10.20€)", "Em Dinheiro / Salário (8.81€)"]
+# --- MENU DE NAVEGAÇÃO INFERIOR ---
+aba = st.radio(
+    "",
+    ["🏠 Início", "📊 Movimentos", "🔮 Simular / Estimativa", "📄 Recibos Guardados"],
+    horizontal=True
 )
+st.markdown("<hr style='margin-top:0; border-color:#1c3d5a;'>", unsafe_allow_html=True)
 
-sa_dia = 10.20 if "Cartão" in opcao_sa else 8.81
+# ----------------------------------------------------
+# 1. INÍCIO
+# ----------------------------------------------------
+if aba == "🏠 Início":
+    st.markdown("""
+        <div class="cgd-account-card">
+            <div style="font-size:12px; color:#8ab4f8;">CaixaJovem Extracto</div>
+            <div style="font-size:11px; color:#9ca3af;">0824668149130</div>
+            <div style="font-size:28px; font-weight:700; margin-top:5px;">901,87 €</div>
+        </div>
+    """, unsafe_allow_html=True)
+    st.info("💡 Podes consultar os teus movimentos e descarregar os recibos de Julho e Junho na aba 'Movimentos' ou 'Recibos Guardados'.")
 
-# VALORES BASE E HORAS EXTRA (COM 11% SS)
-BASE_HORA_LIQ = 5.31 * 0.89   # ~4.73€
-EXTRA_HORA_LIQ = (5.31 * 1.5) * 0.89 # ~7.09€
-GANHO_8H_BASE = 8 * BASE_HORA_LIQ    # ~37.81€
-
-# --- SEÇÃO 1: SIMULADOR DIÁRIO ---
-st.subheader("1. Simular Movimento do Dia")
-
-col1, col2 = st.columns(2)
-
-with col1:
-    tipo_dia = st.selectbox("Tipo de Dia", ["Dia Útil (Segunda a Sexta)", "Sábado"])
-
-with col2:
-    horas_extra = st.number_input(
-        "Horas Extra",
-        min_value=0.0,
-        max_value=14.0,
-        value=0.0,
-        step=0.5
+# ----------------------------------------------------
+# 2. MOVIMENTOS (IDÊNTICO À FOTO DA CAIXA)
+# ----------------------------------------------------
+elif aba == "📊 Movimentos":
+    st.title("Movimentos")
+    
+    # Seletor de Meses estilo Caixa
+    mes_selecionado = st.select_slider(
+        "",
+        options=["Março", "Abril", "Maio", "Junho", "Julho", "Agosto"],
+        value="Julho"
     )
-
-if tipo_dia == "Dia Útil (Segunda a Sexta)":
-    ganho_base_dia = GANHO_8H_BASE + sa_dia
-    ganho_extra = horas_extra * EXTRA_HORA_LIQ
-    total_dia = ganho_base_dia + ganho_extra
     
-    st.info(f"🔹 **Dia Normal (8h + SA):** {ganho_base_dia:.2f} €")
-    if horas_extra > 0:
-        st.info(f"⚡ **Acréscimo Extra ({horas_extra}h):** +{ganho_extra:.2f} €")
-else:
-    ganho_extra = horas_extra * EXTRA_HORA_LIQ
-    total_dia = ganho_extra + sa_dia
+    if mes_selecionado == "Julho":
+        st.markdown('<div class="cgd-date-header">31 DE JUL</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="cgd-mov-card green">
+                <span class="cgd-val-pos">+904,63 €</span>
+                <div class="cgd-title">Trf Triangle Empresa</div>
+                <div class="cgd-sub">Saldo: 904,86 €</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Botão para gerar o recibo de Julho diretamente dos Movimentos
+        pdf_jul = gerar_pdf_recibo(RECIBOS_REAIS["Julho/2026"])
+        st.download_button("📄 Descarregar Recibo de Julho (PDF)", pdf_jul, "Recibo_Julho_2026.pdf", "application/pdf")
+
+        st.markdown('<div class="cgd-date-header">28 DE JUL</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="cgd-mov-card red">
+                <span class="cgd-val-neg">-6,77 €</span>
+                <div class="cgd-title">Digi Portugal Lda</div>
+                <div class="cgd-sub">Saldo: 0,23 €</div>
+            </div>
+            <div class="cgd-mov-card green">
+                <span class="cgd-val-pos">+6,00 €</span>
+                <div class="cgd-title">Tfi In S Filipa David</div>
+                <div class="cgd-sub">Saldo: 7,00 €</div>
+            </div>
+            <div class="cgd-mov-card green">
+                <span class="cgd-val-pos">+1,00 €</span>
+                <div class="cgd-title">Tfi In S Filipa David</div>
+                <div class="cgd-sub">Saldo: 1,00 €</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="cgd-date-header">24 DE JUL</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="cgd-mov-card red">
+                <span class="cgd-val-neg">-0,35 €</span>
+                <div class="cgd-title">Compras C.deb A9</div>
+                <div class="cgd-sub">Saldo: 0,00 €</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown('<div class="cgd-date-header">23 DE JUL</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="cgd-mov-card red">
+                <span class="cgd-val-neg">-64,47 €</span>
+                <div class="cgd-title">Trf Mbway 923xxx659</div>
+                <div class="cgd-sub">Saldo: 0,35 €</div>
+            </div>
+            <div class="cgd-mov-card green">
+                <span class="cgd-val-pos">+63,50 €</span>
+                <div class="cgd-title">Deposito</div>
+                <div class="cgd-sub">Saldo: 64,82 €</div>
+            </div>
+        """, unsafe_allow_html=True)
+
+    elif mes_selecionado == "Junho":
+        st.markdown('<div class="cgd-date-header">30 DE JUN</div>', unsafe_allow_html=True)
+        st.markdown("""
+            <div class="cgd-mov-card green">
+                <span class="cgd-val-pos">+423,05 €</span>
+                <div class="cgd-title">Trf Triangle Empresa</div>
+                <div class="cgd-sub">Recibo Vencimento Junho</div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        pdf_jun = gerar_pdf_recibo(RECIBOS_REAIS["Junho/2026"])
+        st.download_button("📄 Descarregar Recibo de Junho (PDF)", pdf_jun, "Recibo_Junho_2026.pdf", "application/pdf")
+        
+    else:
+        st.write("Sem movimentos registados para este mês.")
+
+# ----------------------------------------------------
+# 3. SIMULAÇÃO E ESTIMATIVAS
+# ----------------------------------------------------
+elif aba == "🔮 Simular / Estimativa":
+    st.subheader("🔮 Estimativa de Ordenado Futuro")
+    dias = st.number_input("Dias Úteis Trabalhados", value=22)
+    hextra = st.number_input("Horas Extra Feitas", value=0.0)
     
-    st.info(f"⚡ **Trabalho ao Sábado ({horas_extra}h):** {ganho_extra:.2f} €")
-    st.info(f"🍲 **Subsídio de Alimentação:** +{sa_dia:.2f} €")
-
-# Cartão de Resultado estilo CGD
-st.markdown(f"""
-    <div class="cgd-card-total">
-        <span style="font-size: 14px; opacity: 0.9;">CRÉDITO ESTIMADO DO DIA</span>
-        <h2>+ {total_dia:.2f} €</h2>
-    </div>
-""", unsafe_allow_html=True)
-
-st.markdown("<br><hr>", unsafe_allow_html=True)
-
-# --- SEÇÃO 2: OBJETIVO MENSAAL ---
-st.subheader("2. Planeamento de Objetivos Mensais")
-
-meta_mensal = st.number_input("Objetivo Líquido Mensal (€)", value=1090.0, step=10.0)
-dias_trabalho_mes = st.number_input("Dias Úteis Trabalhados", value=22, min_value=1)
-acumulado_atual = st.number_input("Saldo Acumulado no Mês (€)", value=0.0, step=10.0)
-
-base_mes_garantido = (dias_trabalho_mes * (GANHO_8H_BASE + sa_dia)) + acumulado_atual
-falta_para_meta = meta_mensal - base_mes_garantido
-
-st.write(f"💳 **Garantido em Dias Úteis ({dias_trabalho_mes} dias):** {base_mes_garantido:.2f} €")
-
-if falta_para_meta <= 0:
-    st.balloons()
-    st.success("🎉 Objetivo atingido! O valor garantido dos dias normais cumpre a tua meta mensal.")
-else:
-    horas_extra_totais = falta_para_meta / EXTRA_HORA_LIQ
-    horas_extra_por_dia = horas_extra_totais / dias_trabalho_mes
+    bruto = (dias * 8 * 5.31) + (hextra * 5.31 * 1.5) + (dias * 10.20)
+    ss = ((dias * 8 * 5.31) + (hextra * 5.31 * 1.5)) * 0.11
+    liquido_banco = bruto - ss - (dias * 10.20)
     
-    st.warning(f"Faltam **{falta_para_meta:.2f} €** para cumprir o objetivo de {meta_mensal:.0f}€.")
+    st.write(f"**Total Bruto:** {bruto:.2f} €")
+    st.write(f"**Desconto SS (11%):** -{ss:.2f} €")
+    st.write(f"**Líquido a receber no Banco:** {liquido_banco:.2f} €")
+    st.write(f"**Cartão de Refeição:** {dias * 10.20:.2f} €")
+
+# ----------------------------------------------------
+# 4. RECIBOS GUARDADOS (JUNHO E JULHO)
+# ----------------------------------------------------
+elif aba == "📄 Recibos Guardados":
+    st.subheader("📁 Histórico de Recibos de Vencimento")
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric(label="Horas Extra Necessárias", value=f"{horas_extra_totais:.1f} h")
-    with c2:
-        st.metric(label="Média p/ Dia Útil", value=f"{horas_extra_por_dia:.1f} h/dia")
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### 📄 Junho / 2026")
+        st.write("**Líquido Banco:** 423,05 €")
+        st.write("**Cartão Refeição:** 86,76 €")
+        pdf_j = gerar_pdf_recibo(RECIBOS_REAIS["Junho/2026"])
+        st.download_button("📥 Baixar PDF Junho", pdf_j, "Recibo_Junho_2026.pdf", key="jun_btn")
+        
+    with col2:
+        st.markdown("### 📄 Julho / 2026")
+        st.write("**Líquido Banco:** 904,63 €")
+        st.write("**Cartão Refeição:** 234,60 €")
+        pdf_jul = gerar_pdf_recibo(RECIBOS_REAIS["Julho/2026"])
+        st.download_button("📥 Baixar PDF Julho", pdf_jul, "Recibo_Julho_2026.pdf", key="jul_btn")
